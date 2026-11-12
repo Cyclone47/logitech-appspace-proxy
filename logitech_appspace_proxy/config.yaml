@@ -1,0 +1,33 @@
+name: "Logitech Tap Scheduler Appspace Proxy"
+version: "1.0.0"
+slug: "logitech_appspace_proxy"
+description: "Hijacks the Appspace WebView Card on a Logitech Tap Scheduler (CollabOS) to display Home Assistant or any web dashboard with desktop resolution scaling, a pull-down URL/Zoom menu, and night-blanking bypass."
+url: "https://github.com/Cyclone47/logitech-appspace-proxy"
+arch:
+  - aarch64
+  - amd64
+  - armv7
+init: false
+startup: services
+boot: auto
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: "HTTP/HTTPS Proxy Port (configure on Tap Scheduler) & /ca.crt download"
+map:
+  - ssl:rw
+  - share:rw
+options:
+  default_url: "http://homeassistant.local:8123"
+  default_zoom: 0.67
+  auto_hide_seconds: 8
+  disable_night_blanking: true
+  ca_cert_base64: ""
+  ca_key_base64: ""
+schema:
+  default_url: str
+  default_zoom: "float(0.35,1.5)"
+  auto_hide_seconds: "int(2,60)"
+  disable_night_blanking: bool
+  ca_cert_base64: "str?"
+  ca_key_base64: "str?"

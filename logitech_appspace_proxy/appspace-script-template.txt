@@ -1,0 +1,568 @@
+<TABLE>
+<ID>Articles_15664</ID>
+articles=1,
+id,mediaid,version,created,updated,createdByUserId,createdby,updatedByUserId,updatedby,accountGuid,
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+	<ID>AZ_1</ID>
+	<ELEMENT>
+		<ID>2</ID>
+		<TYPE>Media Element</TYPE>
+		<ELEMENT DATA>
+			<TYPE>Media Type</TYPE>
+			<DATA>Card</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>Media</TYPE>
+			<DATA>C:\FastNetV2\UG Media\10686\10320724\index.html</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>UGId</TYPE>
+			<DATA>15664</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>Title</TYPE>
+			<DATA>Web View</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>Playout</TYPE>
+			<DATA>86400</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>StartDate</TYPE>
+			<DATA>1/1/2002 12:00:00 AM</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>EndDate</TYPE>
+			<DATA>12/31/2199 12:00:00 AM</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>PlayForever</TYPE>
+			<DATA>True</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>MediaZoneID</TYPE>
+			<DATA>1</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>MediaID</TYPE>
+			<DATA>10320724</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>AspectRatio</TYPE>
+			<DATA>3</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>Transition</TYPE>
+			<DATA>0</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>PlayoutEffect</TYPE>
+			<DATA>0</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>Custom</TYPE>
+			<DATA></DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>PlayoutTagsRule</TYPE>
+			<DATA></DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>Description</TYPE>
+			<DATA></DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>FrequencyCondition</TYPE>
+			<DATA>NotSet</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>FrequencyUnit</TYPE>
+			<DATA>Hour</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>FrequencyPlayout</TYPE>
+			<DATA>1</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>NaturalDuration</TYPE>
+			<DATA>-1</DATA>
+		</ELEMENT DATA>
+		<ELEMENT DATA>
+			<TYPE>ContentId</TYPE>
+			<DATA>e41fb14b-34c1-492b-8fee-31b68b2f8c7c</DATA>
+		</ELEMENT DATA>
+	</ELEMENT>
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>_InterfaceDescription_15664</ID>
+media_zones=1,components=3,
+_id,Name,Description,_interfaceId,MinRes,MaxRes,Schedulable,typeId,approvalFlow,recordPlayoutMetrics,Guid,LastUpdate,
+1,Channel,Channel,15664,0x0,0x0,0,0,2,0,10df1ca2-270b-a2c4-a10d-e7845925fb52,9/6/2026 3:39:23 PM,
+_id,name,type,friendlyId,
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>ApplicationXML_15664</ID>
+<?xml version="1.0" encoding="utf-16"?>
+<Application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <ApplicationID>15664</ApplicationID>
+  <Name>Channel</Name>
+  <PixelWidth>1920</PixelWidth>
+  <PixelHeight>1080</PixelHeight>
+  <Type>Instance</Type>
+  <Properties>
+    <KeyValuePair>
+      <Key>applicationxmltimestamp</Key>
+      <Value>9/6/2026 3:39:23 PM</Value>
+    </KeyValuePair>
+    <KeyValuePair>
+      <Key>enableScheduleMode</Key>
+      <Value>0</Value>
+    </KeyValuePair>
+  </Properties>
+  <Elements>
+    <Element>
+      <ElementID>3</ElementID>
+      <ApplicationID>15664</ApplicationID>
+      <Name>Media Zone</Name>
+      <Properties>
+        <KeyValuePair>
+          <Key>standard.bgcolor</Key>
+          <Value>#00000000</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>standard.margin.left</Key>
+          <Value>0</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>standard.margin.top</Key>
+          <Value>0</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>standard.margin.right</Key>
+          <Value>0</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>standard.margin.bottom</Key>
+          <Value>0</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>standard.border.width</Key>
+          <Value>0</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>standard.border.color</Key>
+          <Value>#ff000000</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>custom.audio.mute</Key>
+          <Value>0</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>custom.audio.level</Key>
+          <Value>100</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>custom.media.default.aspectratio</Key>
+          <Value>2</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>custom.media.default.duration</Key>
+          <Value>8</Value>
+        </KeyValuePair>
+        <KeyValuePair>
+          <Key>custom.media.default.transition.duration</Key>
+          <Value>0.8</Value>
+        </KeyValuePair>
+      </Properties>
+      <ContentSourceID>1</ContentSourceID>
+      <ElementType>MediaZone</ElementType>
+      <AssetSourceID>0</AssetSourceID>
+    </Element>
+  </Elements>
+  <Layouts>
+    <Layout>
+      <LayoutID>4</LayoutID>
+      <ApplicationID>15664</ApplicationID>
+      <Name>default layout</Name>
+      <AspectRatio>1.7777777777777777</AspectRatio>
+      <ElementPlacements>
+        <ElementPlacement>
+          <ElementID>3</ElementID>
+          <X>0</X>
+          <Y>0</Y>
+          <Width>1</Width>
+          <Height>1</Height>
+          <Opacity>1</Opacity>
+          <Color />
+          <TransitionProperties />
+          <ZIndex>0</ZIndex>
+          <Rotation xsi:nil="true" />
+          <Visible>true</Visible>
+          <Metadata />
+        </ElementPlacement>
+      </ElementPlacements>
+    </Layout>
+    <Layout>
+      <LayoutID>6</LayoutID>
+      <ApplicationID>15664</ApplicationID>
+      <Name>BlankScreen_Schedule_a94e52af-472c-473e-8ccf-6cae14f6daa5</Name>
+      <AspectRatio>1.7777777777777777</AspectRatio>
+      <ElementPlacements />
+      <BackgroundColor>#ff000000</BackgroundColor>
+    </Layout>
+  </Layouts>
+  <LayoutSchedules>
+    <LayoutSchedule>
+      <LayoutScheduleID>5</LayoutScheduleID>
+      <ApplicationID>15664</ApplicationID>
+      <Name>Default Schedule</Name>
+      <Position>0</Position>
+      <Disable>false</Disable>
+      <LayoutScheduleItems>
+        <LayoutScheduleItem>
+          <LayoutScheduleItemID>1</LayoutScheduleItemID>
+          <LayoutID>4</LayoutID>
+          <Duration>2147483</Duration>
+          <Disable>false</Disable>
+        </LayoutScheduleItem>
+      </LayoutScheduleItems>
+      <PlayoutSchedule>
+        <ScheduleMode>Strict</ScheduleMode>
+        <IsExclusive>false</IsExclusive>
+        <StartDate>2026-08-06T15:49:55.8550571Z</StartDate>
+        <EndDate>2126-03-10T17:39:43.283Z</EndDate>
+        <NoEndDate>true</NoEndDate>
+        <UseRecurrencePattern>false</UseRecurrencePattern>
+        <RecurrencePatterns />
+      </PlayoutSchedule>
+      <TagExpression />
+      <PlayoutTagsRule />
+    </LayoutSchedule>
+    <LayoutSchedule>
+      <LayoutScheduleID>7</LayoutScheduleID>
+      <ApplicationID>15664</ApplicationID>
+      <Name>BlankScreen_Schedule_a94e52af-472c-473e-8ccf-6cae14f6daa5</Name>
+      <Position>0</Position>
+      <Disable>false</Disable>
+      <LayoutScheduleItems>
+        <LayoutScheduleItem>
+          <LayoutScheduleItemID>7</LayoutScheduleItemID>
+          <LayoutID>6</LayoutID>
+          <Duration>60</Duration>
+          <Disable>false</Disable>
+        </LayoutScheduleItem>
+      </LayoutScheduleItems>
+      <PlayoutSchedule>
+        <ScheduleMode>strict</ScheduleMode>
+        <IsExclusive>true</IsExclusive>
+        <StartDate>1926-09-06T15:49:55.8550846Z</StartDate>
+        <EndDate>2126-09-06T15:49:55.8550865Z</EndDate>
+        <NoEndDate>false</NoEndDate>
+        <UseRecurrencePattern>true</UseRecurrencePattern>
+        <RecurrencePatterns>
+          <PlayoutScheduleRecurrencePattern>
+            <StartTime>2000-02-01T00:00:00</StartTime>
+            <EndTime>2118-06-30T06:00:00</EndTime>
+            <AllDayEvent>false</AllDayEvent>
+            <PlayOnAllDays>false</PlayOnAllDays>
+            <PlayOnMon>true</PlayOnMon>
+            <PlayOnTue>true</PlayOnTue>
+            <PlayOnWed>true</PlayOnWed>
+            <PlayOnThu>true</PlayOnThu>
+            <PlayOnFri>true</PlayOnFri>
+            <PlayOnSat>true</PlayOnSat>
+            <PlayOnSun>true</PlayOnSun>
+          </PlayoutScheduleRecurrencePattern>
+          <PlayoutScheduleRecurrencePattern>
+            <StartTime>2000-02-01T23:00:00</StartTime>
+            <EndTime>2118-06-30T00:00:00</EndTime>
+            <AllDayEvent>false</AllDayEvent>
+            <PlayOnAllDays>false</PlayOnAllDays>
+            <PlayOnMon>true</PlayOnMon>
+            <PlayOnTue>true</PlayOnTue>
+            <PlayOnWed>true</PlayOnWed>
+            <PlayOnThu>true</PlayOnThu>
+            <PlayOnFri>true</PlayOnFri>
+            <PlayOnSat>true</PlayOnSat>
+            <PlayOnSun>true</PlayOnSun>
+          </PlayoutScheduleRecurrencePattern>
+        </RecurrencePatterns>
+      </PlayoutSchedule>
+      <TagExpression />
+      <PlayoutTagsRule />
+    </LayoutSchedule>
+  </LayoutSchedules>
+  <Triggers />
+</Application>
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>LayoutTargets_15664</ID>
+<?xml version="1.0" encoding="utf-16"?>
+<LayoutTargets xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>Application_15664</ID>
+Application.Class=NULL
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>ApplicationLinking_15664</ID>
+Links=1,
+LinkedNetworkID,NetworkName,LinkDistance,
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>PMSchedule_15664</ID>
+pmschedule=1,
+PMScheduleID,ZoneID,Day,StartTime,EndTime,
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>Scheduling_15664</ID>
+schedule=1,timespan=3,schedulemedia=4,schedulemediaplayout=6,schedulemediadayparting=8,
+_id,name,description,_zoneId,startDate,endDate,days,static,autoAdd,allowDuplicates,isExclusive,_UGId,position,zoneName,
+8,Channel,,1,1/1/0001 12:00:00 AM,12/31/9999 11:59:59 PM,Everyday,1,0,0,0,15664,0,SlideShow,
+_id,_scheduleId,type,startTime,endTime,loopCount,
+_id,_scheduleId,_mediaAllocId,position,Type,Title,Description,_mediaId,configuration,mediaplayoutscheduleid,mediaFile,contentId,postId,
+1,8,2,0,Card,Web View,,10320724,,,C:\FastNetV2\UG Media\10686\10320724\index.html,e41fb14b-34c1-492b-8fee-31b68b2f8c7c,e41fb14b-34c1-492b-8fee-31b68b2f8c7c,
+_mediaAllocId,playforever,startDate,endDate,playoutduration,aspectRatio,transition,playoutEffect,custom,playoutTagsRule,frequencyCondition,frequencyPlayout,frequencyUnit,fixedVideoDuration,naturalDuration,volumeLevel,isMuted,
+2,False,1/1/0001 12:00:00 AM,12/31/9999 11:59:59 PM,86400,3,0,0,,,NotSet,0,,-1,-1,,,
+_id,_mediaAllocId,startTime,endTime,days,
+</TABLE>
+<FOLDER LISTINGS>
+	<FOLDER>
+		<PATH>C:\FastNetV2\UG Media\10686\10320724\app\templates</PATH>
+		<NUM FILES>2</NUM FILES>
+		<TOTAL SIZE>1817</TOTAL SIZE>
+		<FILES>
+			<FILE>
+				<NAME>iframe.html</NAME>
+				<SIZE>431</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>proxy.html</NAME>
+				<SIZE>1386</SIZE>
+			</FILE>
+		</FILES>
+	</FOLDER>
+	<FOLDER>
+		<PATH>C:\FastNetV2\UG Media\10686\10320724</PATH>
+		<NUM FILES>18</NUM FILES>
+		<TOTAL SIZE>492106</TOTAL SIZE>
+		<FILES>
+			<FILE>
+				<NAME>dist.min.css</NAME>
+				<SIZE>987</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>dist.min.js</NAME>
+				<SIZE>42263</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>dist.vendor.min.js</NAME>
+				<SIZE>347243</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>index.html</NAME>
+				<SIZE>661</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>lang.json</NAME>
+				<SIZE>2</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>manifest.json</NAME>
+				<SIZE>717</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>model.json</NAME>
+				<SIZE>1136</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>placeholder.svg</NAME>
+				<SIZE>2225</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>schema.json</NAME>
+				<SIZE>11216</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>theme.json</NAME>
+				<SIZE>212</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>thumbnail.jpg</NAME>
+				<SIZE>24944</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>thumbnail.svg</NAME>
+				<SIZE>2231</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>_thumbnail.jpg</NAME>
+				<SIZE>21776</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>_thumbnail_high.jpg</NAME>
+				<SIZE>21776</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>_thumbnail_low.jpg</NAME>
+				<SIZE>1832</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>_thumbnail_medium.jpg</NAME>
+				<SIZE>5886</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>_thumbnail_mid.jpg</NAME>
+				<SIZE>5886</SIZE>
+			</FILE>
+			<FILE>
+				<NAME>_thumbnail_thumb.jpg</NAME>
+				<SIZE>1113</SIZE>
+			</FILE>
+		</FILES>
+	</FOLDER>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>ApplicationAsset_15664</ID>
+assetkeys=1,assetbindings=2,
+Id,Name,AssetDataSourceId,
+Id,AssetKeyId,AssetDataSourceId,Position,mediaFile,
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>ApplicationProperties_15664</ID>
+CDNAgent.ContentDownloadCycle=60000;
+CDNAgent.ContentDownloadMaxSpeed=300000;
+CDNAgent.ContentMaxConcurrentDownloads=4;
+Channel.PlaybackMode=0;
+Device.PackageType=LOGITECH;
+Display.Rotation=0;
+Display.Screen Burn Mode=1;
+Display.Screen Burn Time=0:00, 6:00;
+Player.Configuration.NonOperatingHours.Schedule={"Name":"BlankScreen_Schedule_a94e52af-472c-473e-8ccf-6cae14f6daa5","IsEnabled":true,"Daypartings":[{"Days":[0,1,2,3,4,5,6],"EndTime":"06:00:00","StartTime":"00:00:00"},{"Days":[0,1,2,3,4,5,6],"EndTime":"1.00:00:00","StartTime":"23:00:00"}]};
+Player.Configuration.NonOperatingHours.Schedule.Name=BlankScreen_Schedule_a94e52af-472c-473e-8ccf-6cae14f6daa5;
+Player.Configuration.OperatingHours.Schedule={"isEnabled":true,"daypartings":[{"days":[1,2,3,4,5,6,0],"endTime":"23:00:00","startTime":"06:00:00"}]};
+Player.Configuration.OperatingHours.Schedule.Daypartings=[{"Days":[1,2,3,4,5,6,0],"EndTime":"23:00:00","StartTime":"06:00:00"}];
+Player.Configuration.OperatingHours.Schedule.IsEnabled=true;
+Player.Configuration.Translation={ "isAllLanguagesIncluded": true };
+Player.GUID=a94e52af-472c-473e-8ccf-6cae14f6daa5;
+Player.Model.Name=LOGITECH;
+Player.Software.Version=2.89.2;
+Software.SoftwareUpdates=true;
+System.RebootEvents=23:00;
+display.onresize.reload=false;
+player.adm.tasks.polling.rate=90;
+player.capabilities.supportfilecaching=True;
+player.devicemenu.hotarea.enable=True;
+player.media.webengine=inappbrowser;
+player.statuslight.colorpalette=ada;
+profile=http://homeassistant.local:8123;
+Channel.GUID=00000000-0000-0000-0000-000000000001;
+Channel.PublishingMode=Single;
+Network.SignType=15664;
+Network.Name=My Location;
+Network.Guid=00000000-0000-0000-0000-000000000002;
+Network.ApplicationName=Channel;
+Display.Responsive=True;
+Player.Account.Guid=00000000-0000-0000-0000-000000000003;
+Player.ID=12295;
+Player.Name=Tablet;
+Player.Tags=;
+Player.Group.Guid=;
+Player.Group.Ancestors.Guids=;
+Player.Instance.Guid=00000000-0000-0000-0000-000000000004;
+Player.Services.Api=https://api.cloud.appspace.com;
+Appspace.Version=4.2.1;
+Player.DeviceClass=Standard_Player;
+Appspace.Instance.Type=public;
+appspace.service.script.mediafilelisting=false;
+Device.LOGITECH.SoftwareUpdateVersion=latest;
+Network.Ancestors.Guids=;
+feature.devices.softwareupdates.brightsign.enabled=true;
+feature.devices.analytics.contentplayback=true;
+feature.devices.pushupdates=true;
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>SoftwarePackage_12295</ID>
+softwarepackages=1,packagefiles=2,deployments=3,schedule=4
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>ContentDistribution_12295</ID>
+SmartHub=1,CDN=2,
+_id,name,order,ip,port,
+_id,name,order,ip,pingfile,
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>DeviceLicensing_12295</ID>
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
+<TABLE>
+<ID>CS Package Info</ID>
+<ELEMENT>
+<ID>0</ID>
+<TYPE>Details</TYPE>
+<ELEMENT DATA>
+<TYPE>Uncompressed Size</TYPE>
+<DATA>0 KB</DATA>
+</ELEMENT DATA>
+<ELEMENT DATA>
+<TYPE>Compressed Size</TYPE>
+<DATA>0 KB</DATA>
+</ELEMENT DATA>
+<ELEMENT DATA>
+<TYPE>Script Count</TYPE>
+<DATA>20</DATA>
+</ELEMENT DATA>
+<ELEMENT DATA>
+<TYPE>File Count</TYPE>
+<DATA>20</DATA>
+</ELEMENT DATA>
+<ELEMENT DATA>
+<TYPE>File Size</TYPE>
+<DATA>482</DATA>
+</ELEMENT DATA>
+<ELEMENT DATA>
+<TYPE>SG Id</TYPE>
+<DATA>15664</DATA>
+</ELEMENT DATA>
+<ELEMENT DATA>
+<TYPE>SG Name</TYPE>
+<DATA>Channel</DATA>
+</ELEMENT DATA>
+<ELEMENT DATA>
+<TYPE>Timestamp</TYPE>
+<DATA>TSVAL-9/6/2026 3:39:23 PM-TSVAL</DATA>
+</ELEMENT DATA>
+<ELEMENT DATA>
+<TYPE>default TargetedDeviceTags</TYPE>
+<DATA></DATA>
+</ELEMENT DATA>
+</ELEMENT>
+</TABLE>
+<FOLDER LISTINGS>
+</FOLDER LISTINGS>
