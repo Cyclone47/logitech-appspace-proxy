@@ -437,7 +437,8 @@ def build_portal_html() -> str:
       </div>
       <div class="spacer"></div>
       <div class="zoom-group">
-        <span class="chip" onclick="loadUrl('{default_url}')">Default Dashboard</span>
+        <span class="chip" onclick="loadUrl('https://tap-settings.local/')">⚙️ Tap Web Settings</span>
+        <span class="chip" onclick="escapeToAppspaceMenu()">🔓 Appspace / Device Menu</span>
         <span class="chip" onclick="goDirectInput()">Direct Full</span>
       </div>
     </div>
@@ -572,6 +573,23 @@ def build_portal_html() -> str:
       setTimeout(function() {{ sendToHost({{ message: 'loaded' }}); }}, 200);
       setTimeout(function() {{ sendToHost({{ message: 'loaded' }}); }}, 800);
       setTimeout(function() {{ sendToHost({{ message: 'loaded' }}); }}, 2000);
+
+      // Expose escapeToAppspaceMenu globally so the user can drop back to the Appspace host screen
+      // (where tapping the top corner opens the Appspace Device Menu -> Logitech Settings!)
+      window.escapeToAppspaceMenu = function() {{
+        closeDrawer();
+        ['pointer-events:none', 'width:0px', 'height:0px', 'display:none'].forEach(function(pair) {{
+          const kv = pair.split(':');
+          sendToHost({{
+            message: 'executedevice',
+            action: 'setcontainerstyle',
+            card: 'webview',
+            parameters: {{ property: kv[0], value: kv[1] }}
+          }});
+        }});
+        sendToHost({{ message: 'error' }});
+        sendToHost({{ message: 'complete' }});
+      }};
     }})();
   </script>
 </body>
@@ -583,6 +601,7 @@ INTERCEPT_DOMAINS = (
     "app15.cloud.appspace.com",
     "appspaceusercontent.com",
     "portal.local",
+    "tap-settings.local",
 )
 
 
@@ -759,6 +778,55 @@ class ProxyHandler(socketserver.StreamRequestHandler):
                     b"Content-Length: " + str(len(crt_bytes)).encode() + b"\r\n"
                     b"Connection: close\r\n\r\n" + crt_bytes
                 )
+                wfile.flush()
+                return
+
+            # Reverse-proxy https://tap-settings.local/ to the Tap Scheduler's own Local Network Access UI
+            if "tap-settings.local" in host.lower():
+                tap_ip = self.client_address[0]
+                log_msg(f"  [TAP WEB SETTINGS] Proxying {method} {target} -> https://{tap_ip}:443{target}")
+                req_headers = {
+                    k: v
+                    for k, v in headers.items()
+                    if k not in ("transfer-encoding", "connection", "accept-encoding", "host", "origin", "referer")
+                }
+                req_headers["Host"] = tap_ip
+                req_headers["Origin"] = f"https://{tap_ip}"
+                req_headers["Referer"] = f"https://{tap_ip}/"
+                req_headers["Connection"] = "close"
+                if method.upper() in ("POST", "PUT"):
+                    req_headers["Content-Length"] = str(len(body))
+                conn = http.client.HTTPSConnection(
+                    tap_ip, 443, context=ssl._create_unverified_context(), timeout=15
+                )
+                conn.request(
+                    method,
+                    target,
+                    body=body if method.upper() in ("POST", "PUT") or body else None,
+                    headers=req_headers,
+                )
+                resp = conn.getresponse()
+                resp_body = resp.read()
+                status = resp.status
+                reason = resp.reason
+                resp_headers = resp.getheaders()
+                conn.close()
+                out = [f"HTTP/1.1 {status} {reason}\r\n".encode("latin-1")]
+                for hk, hv in resp_headers:
+                    if hk.lower() in (
+                        "transfer-encoding",
+                        "content-length",
+                        "connection",
+                        "content-encoding",
+                        "x-frame-options",
+                        "content-security-policy",
+                    ):
+                        continue
+                    out.append(f"{hk}: {hv}\r\n".encode("latin-1"))
+                out.append(f"Content-Length: {len(resp_body)}\r\n".encode("latin-1"))
+                out.append(b"Connection: close\r\n\r\n")
+                out.append(resp_body)
+                wfile.write(b"".join(out))
                 wfile.flush()
                 return
 
