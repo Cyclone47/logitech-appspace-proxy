@@ -33,13 +33,28 @@ class TapSchedulerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @property
     def device_info(self) -> DeviceInfo:
-        tap_ip = (self.data or {}).get("tap_ip") or "Tap Scheduler"
+        data = self.data or {}
+        tap_ip = data.get("tap_ip") or "192.168.178.178"
+        caps = (data.get("appspace_capabilities") or {}).get("config") or {}
+        dev_id = caps.get("deviceIdentity") or {}
+        hw = dev_id.get("hardware") or {}
+        sw = dev_id.get("software") or {}
+
+        serial = hw.get("serialNumber") or None
+        fw = sw.get("firmware") or "2.0.86"
+        app_ver = sw.get("appVersion") or "2.89.2"
+        res = hw.get("resolution") or "1280 x 800"
+        mem = hw.get("memory") or "4.0 GB"
+
         return DeviceInfo(
             identifiers={(DOMAIN, self.entry_id)},
             name=f"Logitech Tap Scheduler ({tap_ip})",
             manufacturer="Logitech",
             model="Tap Scheduler (VR0028 / CollabOS)",
-            sw_version="1.2.0",
+            serial_number=serial,
+            sw_version=f"CollabOS {fw} · Appspace {app_ver}",
+            hw_version=f"{res} · {mem} RAM",
+            configuration_url=self.addon_url,
         )
 
     async def _async_update_data(self) -> dict[str, Any]:

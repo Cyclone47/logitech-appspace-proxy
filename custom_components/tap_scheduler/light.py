@@ -19,6 +19,15 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import TapSchedulerCoordinator
 
+EFFECT_PRESET_MAP: dict[str, tuple[str, list[int], str]] = {
+    "Preset: Available (Green)": ("available", [34, 197, 94], "solid"),
+    "Preset: Occupied (Red)": ("occupied", [239, 68, 68], "solid"),
+    "Preset: Check-In (Yellow)": ("checkin", [234, 179, 8], "solid"),
+    "Preset: Purple": ("purple", [168, 85, 247], "solid"),
+    "Preset: ADA Blue": ("ada_available", [59, 130, 246], "solid"),
+    "Preset: ADA Orange": ("ada_occupied", [249, 115, 22], "solid"),
+}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -61,7 +70,7 @@ class TapSchedulerScreenLight(CoordinatorEntity[TapSchedulerCoordinator], LightE
     async def async_turn_on(self, **kwargs: Any) -> None:
         payload: dict[str, Any] = {"screen_on": True}
         if ATTR_BRIGHTNESS in kwargs:
-            pct = max(5, min(100, round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)))
+            pct = max(1, min(100, round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)))
             payload["brightness"] = pct
         await self.coordinator.async_send_control(payload)
 
@@ -70,7 +79,7 @@ class TapSchedulerScreenLight(CoordinatorEntity[TapSchedulerCoordinator], LightE
 
 
 class TapSchedulerEdgeGlowLight(CoordinatorEntity[TapSchedulerCoordinator], LightEntity):
-    """Represents the Tap Scheduler RGB LED / Ambient Edge Glow frame."""
+    """Represents the Tap Scheduler RGB LED / Ambient Edge Glow frame with unfoldable presets."""
 
     _attr_has_entity_name = True
     _attr_name = "LED & Edge Glow"
@@ -78,7 +87,13 @@ class TapSchedulerEdgeGlowLight(CoordinatorEntity[TapSchedulerCoordinator], Ligh
     _attr_color_mode = ColorMode.RGB
     _attr_supported_color_modes = {ColorMode.RGB}
     _attr_supported_features = LightEntityFeature.EFFECT
-    _attr_effect_list = ["solid", "pulse", "breathe"]
+    _attr_effect_list = [
+        "solid",
+        "pulse",
+        "breathe",
+        "flash",
+        *EFFECT_PRESET_MAP.keys(),
+    ]
 
     def __init__(self, coordinator: TapSchedulerCoordinator) -> None:
         super().__init__(coordinator)
@@ -102,10 +117,18 @@ class TapSchedulerEdgeGlowLight(CoordinatorEntity[TapSchedulerCoordinator], Ligh
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         payload: dict[str, Any] = {"glow_on": True}
+        if ATTR_EFFECT in kwargs:
+            eff = str(kwargs[ATTR_EFFECT])
+            if eff in EFFECT_PRESET_MAP:
+                mode_key, rgb, anim = EFFECT_PRESET_MAP[eff]
+                payload["led_mode"] = mode_key
+                payload["glow_color"] = rgb
+                payload["glow_effect"] = anim
+            else:
+                payload["glow_effect"] = eff
         if ATTR_RGB_COLOR in kwargs:
             r, g, b = kwargs[ATTR_RGB_COLOR]
             payload["glow_color"] = [int(r), int(g), int(b)]
-            # Also map dominant RGB color to physical LED status mode
             if g > r * 1.4 and g > b * 1.4:
                 payload["led_mode"] = "available"
             elif r > g * 1.4 and r > b * 1.4:
@@ -116,8 +139,6 @@ class TapSchedulerEdgeGlowLight(CoordinatorEntity[TapSchedulerCoordinator], Ligh
                 payload["led_mode"] = "ada_available"
             else:
                 payload["led_mode"] = "purple"
-        if ATTR_EFFECT in kwargs:
-            payload["glow_effect"] = str(kwargs[ATTR_EFFECT])
         await self.coordinator.async_send_control(payload)
 
     async def async_turn_off(self, **kwargs: Any) -> None:

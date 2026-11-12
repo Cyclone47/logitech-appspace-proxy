@@ -1,5 +1,5 @@
 name: "Logitech Tap Scheduler Appspace Proxy"
-version: "1.2.0"
+version: "1.3.0"
 slug: "logitech_appspace_proxy"
 description: "Hijacks the Appspace WebView Card on a Logitech Tap Scheduler (CollabOS) to display Home Assistant or any web dashboard with desktop resolution scaling, a pull-down URL/Zoom menu, and night-blanking bypass."
 url: "https://github.com/Cyclone47/logitech-appspace-proxy"

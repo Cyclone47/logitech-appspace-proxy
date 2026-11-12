@@ -11,6 +11,7 @@ from .coordinator import TapSchedulerCoordinator
 PLATFORMS: list[Platform] = [
     Platform.LIGHT,
     Platform.SELECT,
+    Platform.SWITCH,
     Platform.BUTTON,
     Platform.TEXT,
     Platform.BINARY_SENSOR,
@@ -30,19 +31,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_popup_url(call: ServiceCall) -> None:
         url = call.data.get("url")
-        duration = call.data.get("duration", 60)
+        duration = call.data.get("duration", call.data.get("revert_seconds", 60))
         for coord in hass.data[DOMAIN].values():
             await coord.async_send_control({"url": url, "duration": duration, "screen_on": True})
 
     async def handle_show_toast(call: ServiceCall) -> None:
         message = call.data.get("message")
+        duration = call.data.get("duration", 6)
         for coord in hass.data[DOMAIN].values():
-            await coord.async_send_control({"toast": message, "screen_on": True})
+            await coord.async_send_control({"toast": message, "duration": duration, "screen_on": True})
 
-    if not hass.services.has_service(DOMAIN, "popup_url"):
-        hass.services.async_register(DOMAIN, "popup_url", handle_popup_url)
-    if not hass.services.has_service(DOMAIN, "show_toast"):
-        hass.services.async_register(DOMAIN, "show_toast", handle_show_toast)
+    async def handle_flash_alert(call: ServiceCall) -> None:
+        color = call.data.get("rgb_color", [239, 68, 68])
+        for coord in hass.data[DOMAIN].values():
+            await coord.async_send_control({"action": "flash_alert", "color": color, "screen_on": True})
+
+    async def handle_open_device_menu(call: ServiceCall) -> None:
+        for coord in hass.data[DOMAIN].values():
+            await coord.async_send_control({"action": "open_device_menu", "screen_on": True})
+
+    for svc_name, handler in (
+        ("popup_url", handle_popup_url),
+        ("load_url", handle_popup_url),
+        ("show_toast", handle_show_toast),
+        ("notify", handle_show_toast),
+        ("flash_alert", handle_flash_alert),
+        ("open_device_menu", handle_open_device_menu),
+    ):
+        if not hass.services.has_service(DOMAIN, svc_name):
+            hass.services.async_register(DOMAIN, svc_name, handler)
 
     return True
 

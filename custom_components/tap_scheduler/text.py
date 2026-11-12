@@ -1,8 +1,9 @@
-"""Text entity for Logitech Tap Scheduler active URL."""
+"""Text entities for Logitech Tap Scheduler (Dashboard URL & Instant Toast Banner)."""
 from __future__ import annotations
 
 from homeassistant.components.text import TextEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -16,9 +17,38 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Tap Scheduler text entity."""
+    """Set up Tap Scheduler text entities."""
     coordinator: TapSchedulerCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([TapSchedulerUrlText(coordinator)])
+    async_add_entities(
+        [
+            TapSchedulerToastText(coordinator),
+            TapSchedulerUrlText(coordinator),
+        ]
+    )
+
+
+class TapSchedulerToastText(CoordinatorEntity[TapSchedulerCoordinator], TextEntity):
+    """Type any message and press Enter to display a floating Toast Banner on the tablet."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Send Toast Banner"
+    _attr_icon = "mdi:message-badge-outline"
+    _attr_native_max = 255
+
+    def __init__(self, coordinator: TapSchedulerCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry_id}_toast_text"
+        self._attr_device_info = coordinator.device_info
+
+    @property
+    def native_value(self) -> str:
+        return str((self.coordinator.data or {}).get("toast_text", ""))
+
+    async def async_set_value(self, value: str) -> None:
+        if value.strip():
+            await self.coordinator.async_send_control(
+                {"toast": value.strip(), "screen_on": True}
+            )
 
 
 class TapSchedulerUrlText(CoordinatorEntity[TapSchedulerCoordinator], TextEntity):
@@ -27,6 +57,7 @@ class TapSchedulerUrlText(CoordinatorEntity[TapSchedulerCoordinator], TextEntity
     _attr_has_entity_name = True
     _attr_name = "Dashboard URL"
     _attr_icon = "mdi:web"
+    _attr_entity_category = EntityCategory.CONFIG
     _attr_native_max = 255
 
     def __init__(self, coordinator: TapSchedulerCoordinator) -> None:

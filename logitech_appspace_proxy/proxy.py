@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-Home Assistant Add-on: Logitech Tap Scheduler Appspace Proxy (v1.2.0)
+Home Assistant Add-on: Logitech Tap Scheduler Appspace Proxy (v1.3.0)
 - Hijacks the Appspace WebView Card on Logitech Tap Scheduler (CollabOS)
 - Provides full-screen Home Assistant dashboard with desktop resolution scaling
-- Pull-down drawer with URL bar, Zoom presets, Brightness slider, Sleep (Tap-to-Wake),
-  LED / Edge-Glow controls, Tap Web Settings proxy, and Native Appspace/Logitech Menu escape
-- Exposes a local REST API (/api/state, /api/control) for the companion Home Assistant
-  (HACS) integration (`tap_scheduler`) so Home Assistant can control Screen Power,
-  Brightness, LEDs, Edge Glow, URL/Camera popups, and Device Menu actions natively.
+- Clean, compact pull-down bar with unfoldable Zoom dropdown & expandable Controls tray
+- Hidden features:
+  - Auto-Sleep Inactivity Timer (Tap-to-Wake)
+  - Screensaver modes (Pure Black, Floating Digital Clock, Dimmed 5%)
+  - Anti-Burn-In Pixel Shifter
+  - Visual Strobe / Flash Alert + Toast Notifications
+  - Native Logitech / Appspace Device Menu escape (WebSocket 55537 + container exit hooks)
+  - Built-in reverse proxy for Tap CollabOS Web Settings (https://tap-settings.local/)
+  - Dynamic timestamp & ApplicationProperties injection for Remote.Enable=True and LED palettes
 """
 import base64
 import datetime
@@ -42,6 +46,7 @@ DEFAULT_OPTIONS = {
     "default_zoom": 0.67,
     "auto_hide_seconds": 8,
     "disable_night_blanking": True,
+    "tap_ip": "192.168.178.178",
     "ca_cert_base64": "",
     "ca_key_base64": "",
 }
@@ -68,6 +73,11 @@ HOST_CERTS_DIR.mkdir(parents=True, exist_ok=True)
 CA_KEY_PATH = CERTS_DIR / "local-root-ca.key"
 CA_CRT_PATH = CERTS_DIR / "local-root-ca.crt"
 
+
+def make_appspace_timestamp() -> str:
+    return datetime.datetime.now().strftime("%m/%d/%Y %I:%M:%S %p")
+
+
 # Live state shared between the Tap Scheduler WebView and Home Assistant Integration
 state_lock = threading.Lock()
 DEVICE_STATE = {
@@ -78,23 +88,31 @@ DEVICE_STATE = {
     "base_url": str(OPTIONS.get("default_url") or "http://homeassistant.local:8123"),
     "popup_expires_at": 0.0,
     "zoom": float(OPTIONS.get("default_zoom") or 0.67),
-    "led_mode": "off",  # off, available (green), occupied (red), checkin (yellow), purple, blue
+    "led_mode": "off",  # off, available (green), occupied (red), checkin (yellow), purple, ada_available (blue), ada_occupied (orange)
     "color_palette": "default",  # default or ada
     "glow_on": False,
     "glow_color": [168, 85, 247],  # RGB
-    "glow_effect": "solid",  # solid, pulse, breathe
+    "glow_effect": "solid",  # solid, pulse, breathe, flash
+    "auto_sleep_minutes": 0,  # 0 = disabled, or 1, 5, 10, 15, 30, 60
+    "screensaver_mode": "black",  # black, clock, dim
+    "burn_in_protection": True,
     "toast_text": "",
     "toast_id": 0,
+    "toast_duration": 6,
+    "flash_id": 0,
+    "flash_color": [239, 68, 68],
     "pending_action": "",
     "PendingActionId": 0,
-    "tap_ip": "",
+    "tap_ip": str(OPTIONS.get("tap_ip") or "192.168.178.178"),
     "last_seen": 0.0,
     "last_touch": 0.0,
+    "script_timestamp": make_appspace_timestamp(),
     "appspace_capabilities": {},
+    "appspace_host_probe": {},
 }
 
 
-def update_state( bump_version: bool = True, **kwargs) -> dict:
+def update_state(bump_version: bool = True, **kwargs) -> dict:
     with state_lock:
         for k, v in kwargs.items():
             DEVICE_STATE[k] = v
@@ -112,6 +130,7 @@ def get_state_snapshot() -> dict:
             DEVICE_STATE["version"] += 1
         snap = dict(DEVICE_STATE)
         snap["online"] = (now - snap["last_seen"]) < 180 if snap["last_seen"] > 0 else False
+        snap["touched_recently"] = (now - snap["last_touch"]) < 60 if snap["last_touch"] > 0 else False
         return snap
 
 
@@ -369,6 +388,7 @@ def build_portal_html() -> str:
     overflow: hidden;
     z-index: 1;
     background: #0f172a;
+    transition: transform 0.4s ease;
   }}
   #browserFrame {{
     position: absolute;
@@ -380,7 +400,7 @@ def build_portal_html() -> str:
     -webkit-transform-origin: 0 0;
   }}
 
-  /* Software brightness dimmer overlay (pointer-events: none so touch passes through) */
+  /* Software brightness dimmer overlay */
   #dimmerOverlay {{
     position: fixed;
     inset: 0;
@@ -391,7 +411,7 @@ def build_portal_html() -> str:
     transition: opacity 0.35s ease;
   }}
 
-  /* Ambient Edge Glow / Alert Frame (pointer-events: none) */
+  /* Ambient Edge Glow / Alert Frame */
   #edgeGlow {{
     position: fixed;
     inset: 0;
@@ -403,146 +423,174 @@ def build_portal_html() -> str:
   }}
   @keyframes glowPulse {{
     0%, 100% {{ opacity: 1; }}
-    50% {{ opacity: 0.25; }}
+    50% {{ opacity: 0.2; }}
   }}
   @keyframes glowBreathe {{
     0%, 100% {{ opacity: 0.95; }}
-    50% {{ opacity: 0.45; }}
+    50% {{ opacity: 0.4; }}
   }}
-  #edgeGlow.pulse {{ animation: glowPulse 1.2s infinite ease-in-out; }}
+  @keyframes glowFlash {{
+    0%, 100% {{ opacity: 1; border-width: 14px; }}
+    25%, 75% {{ opacity: 0.1; border-width: 4px; }}
+    50% {{ opacity: 1; border-width: 18px; }}
+  }}
+  #edgeGlow.pulse {{ animation: glowPulse 1.1s infinite ease-in-out; }}
   #edgeGlow.breathe {{ animation: glowBreathe 3.2s infinite ease-in-out; }}
+  #edgeGlow.flash {{ animation: glowFlash 0.6s 6 ease-in-out; }}
 
-  /* Fullscreen Sleep / Screen-Off Curtain (Tap anywhere to wake!) */
+  /* Fullscreen Sleep / Screensaver Curtain (Tap anywhere to wake!) */
   #sleepCurtain {{
     position: fixed;
     inset: 0;
     z-index: 20000;
     background: #000000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
-  }}
-  #sleepCurtain.sleeping {{
-    opacity: 1;
-    pointer-events: auto;
+    flex-direction: column;
     cursor: pointer;
   }}
+  #sleepCurtain.sleeping {{
+    display: flex;
+  }}
+  #sleepCurtain.dim-mode {{
+    background: rgba(0, 0, 0, 0.94);
+  }}
+  #sleepClock {{
+    display: none;
+    text-align: center;
+    color: rgba(248, 250, 252, 0.45);
+    font-weight: 300;
+    pointer-events: none;
+    transition: transform 1.5s ease;
+  }}
+  #sleepClock .time {{
+    font-size: 84px;
+    letter-spacing: 2px;
+    font-variant-numeric: tabular-nums;
+  }}
+  #sleepClock .date {{
+    font-size: 20px;
+    margin-top: 6px;
+    color: rgba(148, 163, 184, 0.45);
+  }}
 
-  /* Floating Toast Notification */
+  /* Toast Notification Banner */
   #toastBanner {{
     position: fixed;
-    bottom: 24px;
+    bottom: 28px;
     left: 50%;
-    transform: translateX(-50%) translateY(120px);
+    transform: translate(-50%, 130%);
     z-index: 15000;
-    background: rgba(15, 23, 42, 0.95);
+    background: rgba(15, 23, 42, 0.96);
+    border: 1px solid rgba(56, 189, 248, 0.55);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
     color: #f8fafc;
-    border: 1px solid #38bdf8;
-    border-radius: 12px;
-    padding: 12px 22px;
+    padding: 14px 28px;
+    border-radius: 999px;
     font-size: 16px;
     font-weight: 600;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    opacity: 0;
     pointer-events: none;
+    max-width: 85vw;
+    text-align: center;
   }}
   #toastBanner.show {{
-    transform: translateX(-50%) translateY(0);
+    transform: translate(-50%, 0);
+    opacity: 1;
   }}
 
   /* Top-center pull-down gesture zone */
   #pullZone {{
     position: fixed;
     top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 320px;
+    left: 35%;
+    width: 30%;
     height: 22px;
-    z-index: 9998;
+    z-index: 10001;
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    padding-top: 5px;
+    padding-top: 4px;
     cursor: pointer;
     touch-action: none;
   }}
   #pullPill {{
-    width: 56px;
+    width: 64px;
     height: 5px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.28);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    transition: opacity 0.25s, transform 0.2s;
+    background: rgba(255, 255, 255, 0.24);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+    transition: opacity 0.25s, transform 0.25s, background 0.25s;
   }}
-  #pullZone:active #pullPill {{
-    background: rgba(255, 255, 255, 0.75);
+  #pullZone:hover #pullPill, #pullZone:active #pullPill {{
+    background: rgba(56, 189, 248, 0.85);
     transform: scaleX(1.15);
   }}
 
-  #backdrop {{
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    background: rgba(0, 0, 0, 0.35);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.22s ease;
-  }}
-  #backdrop.open {{
-    opacity: 1;
-    pointer-events: auto;
-  }}
-
+  /* Slide-down menu bar */
   #drawer {{
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    z-index: 10000;
+    z-index: 10002;
     background: rgba(15, 23, 42, 0.96);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid #334155;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
-    transform: translateY(-110%);
-    -webkit-transform: translateY(-110%);
-    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
     padding: 10px 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    transform: translateY(-115%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
   }}
   #drawer.open {{
     transform: translateY(0);
-    -webkit-transform: translateY(0);
+  }}
+
+  #backdrop {{
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.25);
+    display: none;
+  }}
+  #backdrop.open {{
+    display: block;
   }}
 
   .toolbar-row {{
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
+    width: 100%;
+    position: relative;
   }}
   .btn {{
-    background: #334155;
+    background: #1e293b;
     color: #f8fafc;
     border: 1px solid #475569;
     border-radius: 8px;
-    padding: 7px 11px;
+    padding: 7px 12px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }}
-  .btn:active {{ background: #475569; }}
+  .btn:active, .btn.active {{ background: #334155; border-color: #38bdf8; }}
   .btn-primary {{ background: #2563eb; border-color: #3b82f6; }}
   .btn-ha {{ background: #0284c7; border-color: #38bdf8; }}
   .btn-sleep {{ background: #4f46e5; border-color: #818cf8; }}
   .url-input {{
     flex: 1;
-    min-width: 180px;
+    min-width: 160px;
     background: #090d16;
     color: #f8fafc;
     border: 1px solid #475569;
@@ -551,10 +599,75 @@ def build_portal_html() -> str:
     font-size: 13px;
     outline: none;
   }}
-  .zoom-group {{
+
+  /* Unfoldable Zoom Popover */
+  .dropdown-wrap {{
+    position: relative;
+    display: inline-block;
+  }}
+  .popover {{
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 220px;
+    background: #0f172a;
+    border: 1px solid #475569;
+    border-radius: 10px;
+    padding: 8px;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.8);
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    z-index: 10010;
+  }}
+  .popover.open {{
+    display: flex;
+  }}
+  .popover-stepper {{
     display: flex;
     align-items: center;
-    gap: 5px;
+    justify-content: space-between;
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+  }}
+  .popover-item {{
+    background: transparent;
+    color: #cbd5e1;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }}
+  .popover-item:hover, .popover-item.active {{
+    background: #0284c7;
+    color: #ffffff;
+    border-color: #38bdf8;
+  }}
+
+  /* Expandable Controls Tray */
+  #moreTray {{
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(71, 85, 105, 0.45);
+  }}
+  #moreTray.open {{
+    display: flex;
+  }}
+
+  .control-group {{
+    display: flex;
+    align-items: center;
+    gap: 6px;
     flex-wrap: wrap;
   }}
   .label {{
@@ -568,8 +681,9 @@ def build_portal_html() -> str:
     color: #cbd5e1;
     border: 1px solid #334155;
     border-radius: 999px;
-    padding: 4px 10px;
+    padding: 5px 11px;
     font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
   }}
@@ -579,7 +693,7 @@ def build_portal_html() -> str:
     border-color: #38bdf8;
   }}
   .slider {{
-    width: 90px;
+    width: 110px;
     accent-color: #38bdf8;
     cursor: pointer;
   }}
@@ -594,175 +708,252 @@ def build_portal_html() -> str:
   <div id="backdrop" onclick="closeDrawer()"></div>
   <div id="dimmerOverlay"></div>
   <div id="edgeGlow"></div>
-  <div id="sleepCurtain" onclick="wakeScreen()" ontouchstart="wakeScreen()"></div>
+  <div id="sleepCurtain" onclick="wakeScreen()" ontouchstart="wakeScreen()">
+    <div id="sleepClock">
+      <div class="time" id="clockTime">00:00</div>
+      <div class="date" id="clockDate"></div>
+    </div>
+  </div>
   <div id="toastBanner"></div>
 
   <div id="drawer" onpointerdown="resetAutoHide()" onkeydown="resetAutoHide()">
-    <!-- Row 1: Navigation & Sleep -->
+    <!-- Primary Compact Row -->
     <div class="toolbar-row">
       <button class="btn btn-ha" onclick="loadUrl('{default_url}')">🏠 HA</button>
       <input id="urlBox" class="url-input" type="text" value="{default_url}"
              placeholder="Enter URL (https://...)"
              onkeydown="if(event.key==='Enter') navigateInput()">
       <button class="btn btn-primary" onclick="navigateInput()">Go</button>
-      <button class="btn" onclick="reloadFrame()">↻</button>
-      <button class="btn btn-sleep" onclick="sleepScreen()">🌙 Screen Off</button>
-      <button class="btn" onclick="closeDrawer()">▲ Hide</button>
+      <button class="btn" onclick="reloadFrame()" title="Reload">↻</button>
+
+      <!-- Single Unfoldable Zoom Setting -->
+      <div class="dropdown-wrap">
+        <button class="btn" id="zoomBtn" onclick="toggleZoomMenu(event)">
+          🔍 <span id="zoomBtnText">{default_zoom_pct}%</span> ▾
+        </button>
+        <div class="popover" id="zoomPopover" onclick="event.stopPropagation()">
+          <div class="popover-stepper">
+            <button class="btn" style="padding:4px 10px" onclick="stepZoom(-0.05)">−</button>
+            <span id="zoomLabel" style="font-size:13px;font-weight:700;color:#f8fafc;">{default_zoom_pct}%</span>
+            <button class="btn" style="padding:4px 10px" onclick="stepZoom(0.05)">+</button>
+          </div>
+          <button class="popover-item" id="z50" onclick="setZoom(0.50)"><span>50%</span><span style="opacity:0.75">1706×1066</span></button>
+          <button class="popover-item" id="z60" onclick="setZoom(0.60)"><span>60%</span><span style="opacity:0.75">1422×888</span></button>
+          <button class="popover-item" id="z67" onclick="setZoom(0.67)"><span>67% ★</span><span style="opacity:0.75">1280×800</span></button>
+          <button class="popover-item" id="z75" onclick="setZoom(0.75)"><span>75%</span><span style="opacity:0.75">1138×711</span></button>
+          <button class="popover-item" id="z85" onclick="setZoom(0.85)"><span>85%</span><span style="opacity:0.75">1004×627</span></button>
+          <button class="popover-item" id="z100" onclick="setZoom(1.00)"><span>100%</span><span style="opacity:0.75">853×533</span></button>
+        </div>
+      </div>
+
+      <!-- Unfoldable Controls & Hidden Settings Button -->
+      <button class="btn" id="moreBtn" onclick="toggleMoreTray()">🎛️ Controls ▾</button>
+      <button class="btn btn-sleep" onclick="sleepScreen()">🌙 Sleep</button>
+      <button class="btn" onclick="closeDrawer()">▲</button>
     </div>
 
-    <!-- Row 2: Resolution / Zoom & Brightness Dimmer -->
-    <div class="toolbar-row">
-      <div class="zoom-group">
-        <span class="label">Zoom:</span>
-        <button class="btn" onclick="stepZoom(-0.05)">−</button>
-        <span id="zoomLabel" class="label" style="min-width:38px;text-align:center;color:#f8fafc;">{default_zoom_pct}%</span>
-        <button class="btn" onclick="stepZoom(0.05)">+</button>
-        <span class="chip" id="z50" onclick="setZoom(0.50)">50% (1920p)</span>
-        <span class="chip" id="z60" onclick="setZoom(0.60)">60% (1420p)</span>
-        <span class="chip" id="z67" onclick="setZoom(0.67)">67% (1280p)</span>
-        <span class="chip" id="z75" onclick="setZoom(0.75)">75%</span>
-        <span class="chip" id="z100" onclick="setZoom(1.00)">100%</span>
+    <!-- Unfoldable Controls & Device Settings Tray -->
+    <div id="moreTray">
+      <div class="toolbar-row">
+        <div class="control-group">
+          <span class="label">🔆 Brightness:</span>
+          <input id="brightSlider" class="slider" type="range" min="1" max="100" value="100"
+                 oninput="setBrightness(this.value, true)">
+          <span id="brightLabel" class="label" style="min-width:34px;color:#f8fafc;">100%</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="control-group">
+          <span class="label">💡 Glow / LED:</span>
+          <span class="chip" onclick="triggerLed('available', [34,197,94])">🟢 Green</span>
+          <span class="chip" onclick="triggerLed('occupied', [239,68,68])">🔴 Red</span>
+          <span class="chip" onclick="triggerLed('checkin', [234,179,8])">🟡 Yellow</span>
+          <span class="chip" onclick="triggerLed('purple', [168,85,247])">🟣 Purple</span>
+          <span class="chip" onclick="triggerLed('ada_available', [59,130,246])">🔵 Blue</span>
+          <span class="chip" onclick="triggerLed('off', null)">⚫ Off</span>
+        </div>
       </div>
-      <div class="spacer"></div>
-      <div class="zoom-group">
-        <span class="label">🔆 Brightness:</span>
-        <input id="brightSlider" class="slider" type="range" min="5" max="100" value="100"
-               oninput="setBrightness(this.value, true)">
-        <span id="brightLabel" class="label" style="min-width:34px;color:#f8fafc;">100%</span>
-      </div>
-    </div>
-
-    <!-- Row 3: LEDs / Edge Glow & Device Settings Escape -->
-    <div class="toolbar-row">
-      <div class="zoom-group">
-        <span class="label">💡 LED / Glow:</span>
-        <span class="chip" onclick="triggerLed('available', [34,197,94])">🟢 Green</span>
-        <span class="chip" onclick="triggerLed('occupied', [239,68,68])">🔴 Red</span>
-        <span class="chip" onclick="triggerLed('checkin', [234,179,8])">🟡 Yellow</span>
-        <span class="chip" onclick="triggerLed('purple', [168,85,247])">🟣 Purple</span>
-        <span class="chip" onclick="triggerLed('ada_available', [59,130,246])">🔵 Blue</span>
-        <span class="chip" onclick="triggerLed('off', null)">⚫ Off</span>
-      </div>
-      <div class="spacer"></div>
-      <div class="zoom-group">
-        <span class="chip" onclick="loadUrl('https://tap-settings.local/')">⚙️ Tap Web Settings</span>
-        <span class="chip" onclick="escapeToAppspaceMenu()">🔓 Logitech / Appspace Menu</span>
+      <div class="toolbar-row">
+        <div class="control-group">
+          <span class="label">🛠️ Hidden & System:</span>
+          <span class="chip" onclick="triggerFlashAlert([56,189,248])">⚡ Flash Alert</span>
+          <span class="chip" onclick="loadUrl('https://tap-settings.local/')">⚙️ Tap CollabOS Web UI</span>
+          <span class="chip" onclick="escapeToAppspaceMenu()">🔓 Native Logitech / Appspace Menu</span>
+        </div>
       </div>
     </div>
   </div>
 
   <div id="frameWrap">
-    <iframe id="browserFrame" src="{default_url}"></iframe>
+    <iframe id="browserFrame" src="{default_url}" allow="autoplay; fullscreen; microphone; camera"></iframe>
   </div>
 
   <script>
+    const frameWrap = document.getElementById('frameWrap');
     const frame = document.getElementById('browserFrame');
     const urlBox = document.getElementById('urlBox');
     const drawer = document.getElementById('drawer');
     const backdrop = document.getElementById('backdrop');
     const pullZone = document.getElementById('pullZone');
     const zoomLabel = document.getElementById('zoomLabel');
+    const zoomBtnText = document.getElementById('zoomBtnText');
+    const zoomPopover = document.getElementById('zoomPopover');
+    const moreTray = document.getElementById('moreTray');
     const dimmerOverlay = document.getElementById('dimmerOverlay');
     const edgeGlow = document.getElementById('edgeGlow');
     const sleepCurtain = document.getElementById('sleepCurtain');
+    const sleepClock = document.getElementById('sleepClock');
+    const clockTime = document.getElementById('clockTime');
+    const clockDate = document.getElementById('clockDate');
+    const toastBanner = document.getElementById('toastBanner');
     const brightSlider = document.getElementById('brightSlider');
     const brightLabel = document.getElementById('brightLabel');
-    const toastBanner = document.getElementById('toastBanner');
 
     let currentZoom = {default_zoom};
     let currentBrightness = 100;
     let isSleeping = false;
+    let screensaverMode = 'black';
+    let autoSleepMinutes = 0;
+    let burnInProtection = true;
+    let lastInteractionTime = Date.now();
     let lastStateVersion = 0;
     let lastToastId = 0;
+    let lastFlashId = 0;
     let lastActionId = 0;
 
-    try {{
-      const saved = parseFloat(localStorage.getItem('tap_browser_zoom'));
-      if (!isNaN(saved) && saved >= 0.35 && saved <= 1.5) currentZoom = saved;
-    }} catch (e) {{}}
-
     function pushTelemetry(payload) {{
-      try {{
-        fetch('/_telemetry', {{
-          method: 'POST',
-          headers: {{ 'Content-Type': 'application/json' }},
-          body: JSON.stringify(payload)
-        }}).catch(function() {{}});
-      }} catch (e) {{}}
+      fetch('/_telemetry', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json' }},
+        body: JSON.stringify(payload)
+      }}).catch(function() {{}});
     }}
 
-    function applyZoom(z, notifyServer) {{
-      currentZoom = Math.round(Math.max(0.35, Math.min(1.5, z)) * 100) / 100;
-      const invPct = (100 / currentZoom).toFixed(4) + '%';
-      frame.style.width = invPct;
-      frame.style.height = invPct;
+    function toggleZoomMenu(e) {{
+      if (e) e.stopPropagation();
+      resetAutoHide();
+      zoomPopover.classList.toggle('open');
+    }}
+
+    function toggleMoreTray() {{
+      resetAutoHide();
+      moreTray.classList.toggle('open');
+    }}
+
+    document.addEventListener('click', function() {{
+      zoomPopover.classList.remove('open');
+    }});
+
+    function applyZoom(scale, report) {{
+      currentZoom = Math.min(1.5, Math.max(0.35, Math.round(scale * 100) / 100));
+      const pct = Math.round(currentZoom * 100);
+      frame.style.width = (100 / currentZoom) + 'vw';
+      frame.style.height = (100 / currentZoom) + 'vh';
       frame.style.transform = 'scale(' + currentZoom + ')';
       frame.style.webkitTransform = 'scale(' + currentZoom + ')';
-      zoomLabel.textContent = Math.round(currentZoom * 100) + '%';
-      try {{ localStorage.setItem('tap_browser_zoom', String(currentZoom)); }} catch (e) {{}}
-      [50, 60, 67, 75, 100].forEach(function(pct) {{
-        const el = document.getElementById('z' + pct);
-        if (el) el.classList.toggle('active', Math.round(currentZoom * 100) === pct);
+      zoomLabel.textContent = pct + '%';
+      zoomBtnText.textContent = pct + '%';
+      ['50', '60', '67', '75', '85', '100'].forEach(function(p) {{
+        const el = document.getElementById('z' + p);
+        if (el) el.classList.toggle('active', Math.abs(pct - parseInt(p, 10)) <= 2);
       }});
-      if (notifyServer) pushTelemetry({{ zoom: currentZoom }});
+      if (report) pushTelemetry({{ zoom: currentZoom }});
     }}
-    function setZoom(z) {{ applyZoom(z, true); resetAutoHide(); }}
-    function stepZoom(delta) {{ applyZoom(currentZoom + delta, true); resetAutoHide(); }}
 
-    function setBrightness(val, notifyServer) {{
+    function setZoom(scale) {{
+      resetAutoHide();
+      applyZoom(scale, true);
+      zoomPopover.classList.remove('open');
+    }}
+    function stepZoom(delta) {{
+      resetAutoHide();
+      applyZoom(currentZoom + delta, true);
+    }}
+
+    function setBrightness(val, report) {{
       currentBrightness = Math.max(1, Math.min(100, parseInt(val, 10) || 100));
       brightSlider.value = currentBrightness;
       brightLabel.textContent = currentBrightness + '%';
-      const dimOpacity = ((100 - currentBrightness) / 100) * 0.92;
-      dimmerOverlay.style.opacity = dimOpacity.toFixed(3);
-      if (notifyServer) {{
-        resetAutoHide();
-        pushTelemetry({{ brightness: currentBrightness }});
+      const dimAlpha = ((100 - currentBrightness) / 100) * 0.92;
+      dimmerOverlay.style.opacity = dimAlpha.toFixed(3);
+      if (report) pushTelemetry({{ brightness: currentBrightness }});
+    }}
+
+    function updateSleepClock() {{
+      const now = new Date();
+      clockTime.textContent = now.toLocaleTimeString([], {{ hour: '2-digit', minute: '2-digit', hour12: false }});
+      clockDate.textContent = now.toLocaleDateString([], {{ weekday: 'long', month: 'short', day: 'numeric' }});
+      if (burnInProtection) {{
+        const dx = Math.floor(Math.random() * 60) - 30;
+        const dy = Math.floor(Math.random() * 60) - 30;
+        sleepClock.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
       }}
     }}
 
-    function sleepScreen(notifyServer) {{
-      isSleeping = true;
-      sleepCurtain.classList.add('sleeping');
-      closeDrawer();
-      if (notifyServer !== false) pushTelemetry({{ screen_on: false }});
+    function applyScreensaverStyle() {{
+      sleepCurtain.classList.toggle('dim-mode', screensaverMode === 'dim');
+      sleepClock.style.display = (screensaverMode === 'clock') ? 'block' : 'none';
+      if (screensaverMode === 'clock') updateSleepClock();
     }}
 
-    function wakeScreen(notifyServer) {{
-      if (!isSleeping && notifyServer === false) return;
+    function sleepScreen(report) {{
+      isSleeping = true;
+      applyScreensaverStyle();
+      sleepCurtain.classList.add('sleeping');
+      closeDrawer();
+      if (report !== false) pushTelemetry({{ screen_on: false }});
+    }}
+
+    function wakeScreen(report) {{
+      lastInteractionTime = Date.now();
+      if (!isSleeping && report !== false) return;
       isSleeping = false;
       sleepCurtain.classList.remove('sleeping');
-      if (notifyServer !== false) pushTelemetry({{ screen_on: true, touch: true }});
+      if (report !== false) pushTelemetry({{ screen_on: true, touch: true }});
     }}
 
     function applyGlow(on, rgb, effect) {{
-      if (!on || !rgb) {{
+      edgeGlow.classList.remove('pulse', 'breathe', 'flash');
+      if (!on || !rgb || rgb.length < 3) {{
         edgeGlow.style.opacity = '0';
-        edgeGlow.className = '';
+        edgeGlow.style.borderColor = 'transparent';
+        edgeGlow.style.boxShadow = 'none';
         return;
       }}
       const c = 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+      const cGlow = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ', 0.88)';
       edgeGlow.style.borderColor = c;
-      edgeGlow.style.boxShadow = 'inset 0 0 36px ' + c + ', inset 0 0 12px ' + c;
+      edgeGlow.style.boxShadow = 'inset 0 0 36px 8px ' + cGlow + ', inset 0 0 90px 18px rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ', 0.38)';
       edgeGlow.style.opacity = '1';
-      edgeGlow.className = (effect === 'pulse' || effect === 'breathe') ? effect : '';
+      if (effect === 'pulse') edgeGlow.classList.add('pulse');
+      if (effect === 'breathe') edgeGlow.classList.add('breathe');
+      if (effect === 'flash') edgeGlow.classList.add('flash');
+    }}
+
+    function triggerFlashAlert(rgb) {{
+      const prevGlowOn = edgeGlow.style.opacity === '1';
+      applyGlow(true, rgb || [239, 68, 68], 'flash');
+      if (isSleeping) wakeScreen(true);
+      setTimeout(function() {{
+        if (!prevGlowOn) applyGlow(false, null, 'solid');
+      }}, 3800);
     }}
 
     let toastTimer = null;
-    function showToast(text) {{
+    function showToast(text, durationSec) {{
       if (!text) return;
       toastBanner.textContent = text;
       toastBanner.classList.add('show');
       if (toastTimer) clearTimeout(toastTimer);
       toastTimer = setTimeout(function() {{
         toastBanner.classList.remove('show');
-      }}, 6000);
+      }}, (durationSec || 6) * 1000);
     }}
 
     applyZoom(currentZoom, false);
 
     let hideTimer = null;
     function resetAutoHide() {{
+      lastInteractionTime = Date.now();
       if (hideTimer) clearTimeout(hideTimer);
       hideTimer = setTimeout(closeDrawer, {auto_hide_ms});
     }}
@@ -774,11 +965,13 @@ def build_portal_html() -> str:
     function closeDrawer() {{
       drawer.classList.remove('open');
       backdrop.classList.remove('open');
+      zoomPopover.classList.remove('open');
       if (hideTimer) {{ clearTimeout(hideTimer); hideTimer = null; }}
     }}
 
     let startY = null;
     pullZone.addEventListener('touchstart', function(e) {{
+      lastInteractionTime = Date.now();
       if (e.touches && e.touches.length > 0) startY = e.touches[0].clientY;
     }}, {{ passive: true }});
     pullZone.addEventListener('touchmove', function(e) {{
@@ -792,6 +985,12 @@ def build_portal_html() -> str:
     pullZone.addEventListener('click', function() {{
       openDrawer();
     }});
+
+    // Track touch interactions globally for occupancy sensor & auto-sleep timer
+    window.addEventListener('pointerdown', function() {{
+      lastInteractionTime = Date.now();
+      pushTelemetry({{ touch: true }});
+    }}, {{ passive: true }});
 
     function normalize(u) {{
       u = u.trim();
@@ -813,15 +1012,55 @@ def build_portal_html() -> str:
     }}
     function navigateInput() {{ loadUrl(urlBox.value, false); }}
 
+    // Periodic clock update, Auto-Sleep check, and Anti-Burn-In Pixel Shifter
+    setInterval(function() {{
+      if (isSleeping && screensaverMode === 'clock') {{
+        updateSleepClock();
+      }}
+      if (!isSleeping && autoSleepMinutes > 0) {{
+        const idleMs = Date.now() - lastInteractionTime;
+        if (idleMs >= autoSleepMinutes * 60000) {{
+          sleepScreen(true);
+        }}
+      }}
+      if (!isSleeping && burnInProtection) {{
+        const px = (Math.floor(Date.now() / 60000) % 3) - 1;
+        const py = (Math.floor(Date.now() / 120000) % 3) - 1;
+        frameWrap.style.transform = 'translate(' + px + 'px, ' + py + 'px)';
+      }} else {{
+        frameWrap.style.transform = 'none';
+      }}
+    }}, 15000);
+
     // Appspace Host WebView Handshake & Hardware Bridge
     (function() {{
       const params = new URLSearchParams(window.location.search);
       const cardId = params.get('cardId') || '';
       let appWindow = null;
       let appOrigin = '*';
+      let msMessaging = null;
+      let hasProbedHost = false;
+
+      window.msPostMessaging = function(message) {{
+        try {{
+          const obj = typeof message === 'string' ? JSON.parse(message) : message;
+          handleHostMessage({{ data: obj, origin: 'mswebview' }});
+        }} catch (e) {{}}
+      }};
+      window.msRetrieveMessaging = function() {{
+        if (msMessaging) {{
+          const out = JSON.stringify(msMessaging);
+          msMessaging = [];
+          return out;
+        }}
+        return '[]';
+      }};
 
       function sendToHost(msgObj) {{
         msgObj.cardId = cardId;
+        if (msMessaging) {{
+          msMessaging.push(msgObj);
+        }}
         try {{
           if (appWindow) appWindow.postMessage(msgObj, appOrigin || '*');
         }} catch (e) {{}}
@@ -833,23 +1072,47 @@ def build_portal_html() -> str:
         }} catch (e) {{}}
       }}
 
-      window.addEventListener('message', function(event) {{
+      function probeCordovaHost() {{
+        if (hasProbedHost) return;
+        hasProbedHost = true;
+        ['index.html', 'cordova_plugins.js', 'cordova.js'].forEach(function(file, idx) {{
+          const reqId = 8000 + idx;
+          sendToHost({{
+            message: 'api.xhr',
+            url: file,
+            settings: {{ type: 'GET', dataType: 'text' }},
+            $requestId: reqId,
+            callback: {{ $requestId: reqId }}
+          }});
+        }});
+      }}
+
+      function handleHostMessage(event) {{
         if (!event || !event.data) return;
         const m = String(event.data.message || '').toLowerCase();
         if (event.source) {{
           appWindow = event.source;
           appOrigin = event.origin || '*';
         }}
-        if (m === 'appspaceapp.webview.postmessage.init' || m === 'appspaceapp.mswebview.postmessage.init') {{
+        if (m === 'appspaceapp.webview.postmessage.init') {{
+          sendToHost({{ message: 'onapiready' }});
+          setTimeout(function() {{ sendToHost({{ message: 'loaded' }}); }}, 100);
+        }} else if (m === 'appspaceapp.mswebview.postmessage.init') {{
+          msMessaging = [];
           sendToHost({{ message: 'onapiready' }});
           setTimeout(function() {{ sendToHost({{ message: 'loaded' }}); }}, 100);
         }} else if (m === 'api.init') {{
           sendToHost({{ message: 'loaded' }});
-          pushTelemetry({{ appspace_init: event.data }});
+          pushTelemetry({{ appspace_init: event.data, host_origin: event.origin || '' }});
+          setTimeout(probeCordovaHost, 500);
+        }} else if (m === 'api.response') {{
+          pushTelemetry({{ host_probe_response: event.data }});
         }} else if (m === 'onmodelupdate' || m === 'play') {{
           sendToHost({{ message: 'loaded' }});
         }}
-      }}, false);
+      }}
+
+      window.addEventListener('message', handleHostMessage, false);
 
       sendToHost({{ message: 'onapiready' }});
       setTimeout(function() {{ sendToHost({{ message: 'loaded' }}); }}, 200);
@@ -871,9 +1134,16 @@ def build_portal_html() -> str:
         const statusName = (mode === 'occupied' || mode === 'ada_occupied') ? 'occupied'
                          : (mode === 'checkin') ? 'pending'
                          : (mode === 'off') ? 'off' : 'available';
+        const colorWord = (mode === 'occupied') ? 'red'
+                        : (mode === 'checkin') ? 'yellow'
+                        : (mode === 'ada_available') ? 'blue'
+                        : (mode === 'ada_occupied') ? 'orange'
+                        : (mode === 'purple') ? 'purple'
+                        : (mode === 'off') ? 'off' : 'green';
         [
-          {{ message: 'executedevice', action: 'setstatuslight', parameters: {{ status: statusName, color: hex }} }},
-          {{ message: 'executedevice', action: 'statuslight', parameters: {{ status: statusName, color: hex }} }},
+          {{ message: 'executedevice', action: 'setstatuslight', card: 'scheduleboard', parameters: {{ status: statusName, color: hex, state: statusName }} }},
+          {{ message: 'executedevice', action: 'statuslight', card: 'scheduleboard', parameters: {{ status: statusName, color: colorWord }} }},
+          {{ message: 'executedevice', action: 'setstatuslight', card: 'webview', parameters: {{ status: statusName, color: hex }} }},
           {{ message: 'statuslight', status: statusName, color: hex }},
           {{ message: 'api.statuslight', status: statusName, color: hex }}
         ].forEach(sendToHost);
@@ -891,7 +1161,7 @@ def build_portal_html() -> str:
         }}
       }};
 
-      // Escape to native Appspace / Logitech Device Menu (via local WS 55537 + server WS 55537 + executedevice)
+      // Escape to native Appspace / Logitech Device Menu
       window.escapeToAppspaceMenu = function() {{
         closeDrawer();
         pushTelemetry({{ action: 'open_device_menu' }});
@@ -921,6 +1191,13 @@ def build_portal_html() -> str:
             if (st.version === lastStateVersion) return;
             lastStateVersion = st.version;
 
+            if (typeof st.auto_sleep_minutes === 'number') autoSleepMinutes = st.auto_sleep_minutes;
+            if (st.screensaver_mode) {{
+              screensaverMode = st.screensaver_mode;
+              if (isSleeping) applyScreensaverStyle();
+            }}
+            if (typeof st.burn_in_protection === 'boolean') burnInProtection = st.burn_in_protection;
+
             if (st.screen_on === false && !isSleeping) sleepScreen(false);
             if (st.screen_on === true && isSleeping) wakeScreen(false);
             if (typeof st.brightness === 'number' && st.brightness !== currentBrightness) {{
@@ -938,11 +1215,16 @@ def build_portal_html() -> str:
             }}
             if (st.toast_id && st.toast_id !== lastToastId && st.toast_text) {{
               lastToastId = st.toast_id;
-              showToast(st.toast_text);
+              showToast(st.toast_text, st.toast_duration || 6);
+            }}
+            if (st.flash_id && st.flash_id !== lastFlashId) {{
+              lastFlashId = st.flash_id;
+              triggerFlashAlert(st.flash_color || [239, 68, 68]);
             }}
             if (st.PendingActionId && st.PendingActionId !== lastActionId) {{
               lastActionId = st.PendingActionId;
               if (st.pending_action === 'reload') reloadFrame();
+              if (st.pending_action === 'reload_all') window.location.reload(true);
               if (st.pending_action === 'open_device_menu') window.escapeToAppspaceMenu();
             }}
           }})
@@ -998,6 +1280,10 @@ def tunnel_sockets(sock1: socket.socket, sock2: socket.socket):
 
 def patch_appspace_script(raw_bytes: bytes) -> bytes:
     text = raw_bytes.decode("utf-8", errors="replace")
+    snap = get_state_snapshot()
+    palette = snap.get("color_palette", "default")
+    script_ts = snap.get("script_timestamp", "11/12/2026 02:00:00 AM")
+
     if OPTIONS.get("disable_night_blanking", True):
         text = re.sub(
             r"<LayoutSchedule>\s*<LayoutScheduleID>7</LayoutScheduleID>.*?</LayoutSchedule>",
@@ -1022,24 +1308,27 @@ def patch_appspace_script(raw_bytes: bytes) -> bytes:
             text,
         )
 
-    # Enable Appspace local WebSocket remote control on port 55537 (?remote=system)
-    if "Remote.Enable=" not in text:
-        text = text.replace(
-            "player.devicemenu.hotarea.enable=True;",
-            "player.devicemenu.hotarea.enable=True;\r\nRemote.Enable=True;",
-        )
-
-    # Apply requested status light palette (default = Green/Red/Yellow, ada = Blue/Orange/Yellow)
-    snap = get_state_snapshot()
-    palette = snap.get("color_palette", "default")
-    text = re.sub(r"player\.statuslight\.colorpalette=.*?;", f"player.statuslight.colorpalette={palette};", text)
+    # Reliably inject Remote.Enable=True, hotarea.enable=True, and statuslight.colorpalette into ApplicationProperties
+    injected_props = (
+        f"player.capabilities.supportfilecaching=True;\r\n"
+        f"player.devicemenu.hotarea.enable=True;\r\n"
+        f"Remote.Enable=True;\r\n"
+        f"player.statuslight.enable=True;\r\n"
+        f"player.statuslight.colorpalette={palette};"
+    )
+    if "player.capabilities.supportfilecaching=True;" in text:
+        # Remove any existing duplicates first
+        text = re.sub(r"player\.devicemenu\.hotarea\.enable=.*?;[\r\n]*", "", text)
+        text = re.sub(r"Remote\.Enable=.*?;[\r\n]*", "", text)
+        text = re.sub(r"player\.statuslight\.colorpalette=.*?;[\r\n]*", "", text)
+        text = text.replace("player.capabilities.supportfilecaching=True;", injected_props, 1)
 
     text = re.sub(
         r"<DATA>TSVAL-.*?-TSVAL</DATA>",
-        "<DATA>TSVAL-11/11/2026 11:48:00 PM-TSVAL</DATA>",
+        f"<DATA>TSVAL-{script_ts}-TSVAL</DATA>",
         text,
     )
-    log_msg("  [APPSPACE] Patched script: disabled night blanking & enabled Remote.Enable=True (port 55537)!")
+    log_msg(f"  [APPSPACE] Patched script (ts={script_ts}, palette={palette}, Remote.Enable=True)!")
     return text.encode("utf-8")
 
 
@@ -1106,11 +1395,10 @@ class ProxyHandler(socketserver.StreamRequestHandler):
             host = headers.get("host", tls_host or "")
             client_ip = self.client_address[0]
 
-            # Record Tap Scheduler IP when it talks to Appspace
             if "appspace" in host.lower():
                 update_state(bump_version=False, tap_ip=client_ip, last_seen=time.time())
 
-            if not target.startswith("/_state"):
+            if not target.startswith("/_state") and not target.startswith("/api/state"):
                 log_msg(f"{client_ip} -> {method} {target} (Host: {host}, TLS: {is_tls})")
 
             if method.upper() == "CONNECT":
@@ -1172,9 +1460,9 @@ class ProxyHandler(socketserver.StreamRequestHandler):
                 wfile.flush()
                 return
 
-            # 2. Live State & Control REST API (used by Tap Scheduler WebView AND Home Assistant Integration)
+            # 2. Live State & Control REST API
             if path_only in ("/_state", "/api/state"):
-                if "appspaceusercontent.com" in host.lower():
+                if "appspace" in host.lower():
                     update_state(bump_version=False, tap_ip=client_ip, last_seen=time.time())
                 send_json_response(wfile, 200, get_state_snapshot())
                 return
@@ -1194,7 +1482,20 @@ class ProxyHandler(socketserver.StreamRequestHandler):
                             updates["base_url"] = data[k]
                 if "appspace_init" in data:
                     updates["appspace_capabilities"] = data["appspace_init"]
-                    log_msg(f"  [APPSPACE API.INIT TELEMETRY] {json.dumps(data['appspace_init'])[:600]}")
+                    if "host_origin" in data:
+                        with state_lock:
+                            probe = dict(DEVICE_STATE.get("appspace_host_probe") or {})
+                            probe["host_origin"] = data["host_origin"]
+                            updates["appspace_host_probe"] = probe
+                    log_msg(f"  [APPSPACE API.INIT TELEMETRY] origin={data.get('host_origin')}")
+                if "host_probe_response" in data:
+                    resp_obj = data["host_probe_response"]
+                    req_id = str(resp_obj.get("requestId", "unknown"))
+                    with state_lock:
+                        probe = dict(DEVICE_STATE.get("appspace_host_probe") or {})
+                        probe[f"req_{req_id}"] = str(resp_obj.get("result", ""))[:2000]
+                        updates["appspace_host_probe"] = probe
+                    log_msg(f"  [APPSPACE HOST PROBE] reqId={req_id} len={len(str(resp_obj.get('result', '')))}")
                 if data.get("action") == "open_device_menu":
                     threading.Thread(
                         target=send_appspace_ws_command, args=(client_ip, "?remote=system"), daemon=True
@@ -1215,6 +1516,12 @@ class ProxyHandler(socketserver.StreamRequestHandler):
                     updates["brightness"] = max(1, min(100, int(cmd["brightness"])))
                 if "zoom" in cmd:
                     updates["zoom"] = max(0.35, min(1.5, float(cmd["zoom"])))
+                if "auto_sleep_minutes" in cmd:
+                    updates["auto_sleep_minutes"] = max(0, int(cmd["auto_sleep_minutes"]))
+                if "screensaver_mode" in cmd:
+                    updates["screensaver_mode"] = str(cmd["screensaver_mode"]).lower()
+                if "burn_in_protection" in cmd:
+                    updates["burn_in_protection"] = bool(cmd["burn_in_protection"])
                 if "url" in cmd and cmd["url"]:
                     updates["url"] = str(cmd["url"])
                     duration = float(cmd.get("duration") or 0)
@@ -1226,7 +1533,12 @@ class ProxyHandler(socketserver.StreamRequestHandler):
                 if "led_mode" in cmd:
                     mode = str(cmd["led_mode"]).lower()
                     updates["led_mode"] = mode
-                    updates["color_palette"] = "ada" if mode.startswith("ada_") else "default"
+                    new_palette = "ada" if mode.startswith("ada_") else "default"
+                    with state_lock:
+                        old_palette = DEVICE_STATE.get("color_palette", "default")
+                    if new_palette != old_palette:
+                        updates["color_palette"] = new_palette
+                        updates["script_timestamp"] = make_appspace_timestamp()
                 if "glow_on" in cmd:
                     updates["glow_on"] = bool(cmd["glow_on"])
                 if "glow_color" in cmd and isinstance(cmd["glow_color"], list) and len(cmd["glow_color"]) == 3:
@@ -1235,18 +1547,33 @@ class ProxyHandler(socketserver.StreamRequestHandler):
                     updates["glow_effect"] = str(cmd["glow_effect"]).lower()
                 if "toast" in cmd and cmd["toast"]:
                     with state_lock:
-                         updates["toast_id"] = int(DEVICE_STATE.get("toast_id", 0)) + 1
+                        updates["toast_id"] = int(DEVICE_STATE.get("toast_id", 0)) + 1
                     updates["toast_text"] = str(cmd["toast"])
+                    updates["toast_duration"] = int(cmd.get("duration") or 6)
 
                 action = str(cmd.get("action") or "").lower()
                 if action:
                     snap = get_state_snapshot()
-                    tap_ip = snap.get("tap_ip") or "192.168.178.178"
+                    tap_ip = snap.get("tap_ip") or str(OPTIONS.get("tap_ip") or "192.168.178.178")
                     if action == "wake":
                         updates["screen_on"] = True
                     elif action == "sleep":
                         updates["screen_on"] = False
-                    elif action in ("reload", "open_device_menu"):
+                    elif action == "return_home":
+                        default_home = str(OPTIONS.get("default_url") or "http://homeassistant.local:8123")
+                        updates["url"] = default_home
+                        updates["base_url"] = default_home
+                        updates["popup_expires_at"] = 0.0
+                    elif action == "open_collabos_settings":
+                        updates["url"] = "https://tap-settings.local/"
+                        updates["popup_expires_at"] = 0.0
+                    elif action == "flash_alert":
+                        with state_lock:
+                            updates["flash_id"] = int(DEVICE_STATE.get("flash_id", 0)) + 1
+                        if "color" in cmd and isinstance(cmd["color"], list) and len(cmd["color"]) == 3:
+                            updates["flash_color"] = [int(x) for x in cmd["color"]]
+                        updates["screen_on"] = True
+                    elif action in ("reload", "reload_all", "open_device_menu"):
                         with state_lock:
                             updates["PendingActionId"] = int(DEVICE_STATE.get("PendingActionId", 0)) + 1
                         updates["pending_action"] = action
@@ -1255,10 +1582,15 @@ class ProxyHandler(socketserver.StreamRequestHandler):
                                 target=send_appspace_ws_command, args=(tap_ip, "?remote=system"), daemon=True
                             ).start()
                     elif action == "restart_app":
+                        updates["script_timestamp"] = make_appspace_timestamp()
+                        with state_lock:
+                            updates["PendingActionId"] = int(DEVICE_STATE.get("PendingActionId", 0)) + 1
+                        updates["pending_action"] = "reload_all"
                         threading.Thread(
                             target=send_appspace_ws_command, args=(tap_ip, "?system=restart"), daemon=True
                         ).start()
                     elif action == "resync_app":
+                        updates["script_timestamp"] = make_appspace_timestamp()
                         threading.Thread(
                             target=send_appspace_ws_command, args=(tap_ip, "?system=resync"), daemon=True
                         ).start()
@@ -1318,7 +1650,9 @@ class ProxyHandler(socketserver.StreamRequestHandler):
 
             # 4. Appspace & AppspaceUserContent HTTPS traffic
             if "appspace.com" in host.lower() or "appspaceusercontent.com" in host.lower():
-                if "appspaceusercontent.com" in host.lower() and "/index.html" in target.lower():
+                if "/index.html" in target.lower() and (
+                    "appspaceusercontent.com" in host.lower() or "/fastnetdata/" in target.lower()
+                ):
                     log_msg(f"  [APPSPACE CARD HIJACK] Serving Local Browser UI as index.html for {target}")
                     payload = build_portal_html().encode("utf-8")
                     wfile.write(
@@ -1364,7 +1698,8 @@ class ProxyHandler(socketserver.StreamRequestHandler):
                 log_msg(f"  [APPSPACE UPSTREAM] {method} {target} -> {status} ({len(resp_body)} bytes)")
 
                 if "configscripthandler.ashx" in target.lower() and "operation=timestamp" in target.lower():
-                    resp_body = b"11/11/2026 11:48:00 PM"
+                    ts_str = get_state_snapshot().get("script_timestamp", "11/12/2026 02:00:00 AM")
+                    resp_body = ts_str.encode("utf-8")
 
                 if "configscripthandler.ashx" in target.lower() and "operation=script" in target.lower():
                     tpl_path = APP_DIR / "appspace-script-template.txt"
@@ -1411,7 +1746,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 if __name__ == "__main__":
     server = ThreadedTCPServer(("0.0.0.0", 8080), ProxyHandler)
     log_msg(
-        f"Logitech Tap Scheduler Appspace Proxy Add-on v1.2.0 listening on 0.0.0.0:8080 "
+        f"Logitech Tap Scheduler Appspace Proxy Add-on v1.3.0 listening on 0.0.0.0:8080 "
         f"(default_url={OPTIONS.get('default_url')}, default_zoom={OPTIONS.get('default_zoom')})"
     )
     server.serve_forever()

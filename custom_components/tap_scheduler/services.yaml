@@ -21,7 +21,7 @@ popup_url:
 
 show_toast:
   name: Show Toast Notification
-  description: Display a floating banner message at the bottom of the Tap Scheduler screen for 6 seconds.
+  description: Display a floating banner message at the bottom of the Tap Scheduler screen.
   fields:
     message:
       name: Message
@@ -30,3 +30,27 @@ show_toast:
       example: "Someone is at the front door!"
       selector:
         text:
+    duration:
+      name: Duration (seconds)
+      description: How many seconds to show the banner.
+      default: 6
+      selector:
+        number:
+          min: 2
+          max: 60
+          unit_of_measurement: seconds
+
+flash_alert:
+  name: Flash Visual Alert
+  description: Wake the Tap Scheduler screen and flash a high-contrast RGB alert border.
+  fields:
+    rgb_color:
+      name: RGB Color
+      description: Alert flash RGB color.
+      default: [239, 68, 68]
+      selector:
+        color_rgb:
+
+open_device_menu:
+  name: Open Native Logitech / Appspace Menu
+  description: Trigger the native Appspace / Logitech CollabOS Device Settings menu via WebSocket 55537.
