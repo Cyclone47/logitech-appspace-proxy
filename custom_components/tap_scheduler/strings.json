@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Logitech Tap Scheduler Proxy Add-on",
+        "description": "Enter the URL of your Logitech Tap Scheduler Appspace Proxy Add-on (default: http://127.0.0.1:8080).",
+        "data": {
+          "addon_url": "Add-on URL"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the Add-on API at /api/state. Make sure the Add-on is running."
+    }
+  }
+}

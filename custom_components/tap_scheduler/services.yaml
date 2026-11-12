@@ -1,0 +1,32 @@
+popup_url:
+  name: Popup URL / Camera Stream
+  description: Temporarily switch the Tap Scheduler screen to a URL (e.g., doorbell camera view) and automatically return to the main dashboard after `duration` seconds.
+  fields:
+    url:
+      name: URL
+      description: The URL to display on the Tap Scheduler.
+      required: true
+      example: "http://homeassistant.local:8123/lovelace/cameras"
+      selector:
+        text:
+    duration:
+      name: Duration (seconds)
+      description: Seconds before automatically returning to the base dashboard URL (0 = permanent).
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: seconds
+
+show_toast:
+  name: Show Toast Notification
+  description: Display a floating banner message at the bottom of the Tap Scheduler screen for 6 seconds.
+  fields:
+    message:
+      name: Message
+      description: The text message to display on screen.
+      required: true
+      example: "Someone is at the front door!"
+      selector:
+        text:
